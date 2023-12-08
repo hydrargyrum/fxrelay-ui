@@ -15,6 +15,9 @@ from textual.screen import ModalScreen
 from textual.widgets import DataTable, Input
 
 
+DRY_RUN = True
+
+
 @dataclass
 class Column:
     label: str
@@ -75,8 +78,10 @@ class FxRelayClient:
         return response.json()
 
     def edit_entry(self, id, changes):
-        log(changes)
-        return
+        if DRY_RUN:
+            log(changes)
+            return
+
         response = self.session.patch(
             f"https://relay.firefox.com/api/v1/relayaddresses/{id}",
             json={},
@@ -85,6 +90,9 @@ class FxRelayClient:
         return response.json()
 
     def delete_entry(self, id):
+        if DRY_RUN:
+            return
+
         response = self.session.delete(f"https://relay.firefox.com/api/v1/relayaddresses/{id}")
         response.raise_for_status()
         return response.json()
@@ -96,6 +104,7 @@ class Table(DataTable):
         Binding("(", "sort_asc_col"),
         Binding(")", "sort_desc_col"),
         Binding("ctrl+n", "new_row"),
+        Binding("e", "edit_cell"),
     ]
 
     [
@@ -128,10 +137,13 @@ class Table(DataTable):
     def refresh_entries(self):
         self.entries = {str(jentry["id"]): jentry for jentry in self.client.list_entries()}
         self.clear()
-        for row_key, entry in self.entries.items():
-            self.add_row(
-                *(col.format(entry[col.json_key]) for col in self._columns.values()), key=row_key
-            )
+        for entry in self.entries.values():
+            self._add_row(entry)
+
+    def _add_row(self, entry):
+        self.add_row(
+            *(col.format(entry[col.json_key]) for col in self._columns.values()), key=str(entry["id"])
+        )
 
     def action_sort_asc_col(self):
         col_key = self.cursor_key.column_key
@@ -142,15 +154,41 @@ class Table(DataTable):
         self.sort(col_key, key=self._columns[col_key].sortkey, reverse=True)
 
     def action_new_row(self):
-        entry = self.client.new_entry()
-        # self.entries[entry["id"]] = entry
-        # self.table.add_row(*(col.format(jentry[col.json_key]) for col in COLS), key=jentry["id"])
+        if DRY_RUN:
+            entry = next(iter(self.entries.values()))
+            entry["id"] = 42
+        else:
+            entry = self.client.new_entry()
+
+        self.entries[str(entry["id"])] = entry
+        self._add_row(entry)
+        coord = self.get_cell_coordinate(str(entry["id"]), "0")
+        self.move_cursor(row=coord.row, column=coord.column, animate=True)
 
     def action_delete_row(self):
         key = self.cursor_key.row_key
-        # self.client.delete_entry(key)
+        if not DRY_RUN:
+            self.client.delete_entry(key)
         self.table.remove_row(key)
         del self.entries[key]
+
+    def action_edit_cell(self):
+        col_key = self.cursor_key.column_key
+        row_key = self.cursor_key.row_key
+        column = self._columns[col_key]
+        if not column.editable:
+            return
+        current_value = self.entries[row_key][column.json_key]
+
+        def on_dismiss(value):
+            if value is None:
+                return
+            self.perform_edit(row_key, column, value)
+
+        self.app.push_screen(InputScreen(current_value), on_dismiss)
+
+    def perform_edit(self, row_key, column, value):
+        self.client.edit_entry(row_key, {column.json_key: value})
 
 
 class InputScreen(ModalScreen):
@@ -167,7 +205,6 @@ class InputScreen(ModalScreen):
 
 class TableApp(App):
     BINDINGS = [
-        Binding("e", "edit_cell"),
         ("t", "toggle_cell", "blah"),
     ]
     # TODO search
@@ -190,24 +227,6 @@ class TableApp(App):
     def table(self):
         # idiomatic?
         return self.query_one(DataTable)
-
-    def action_edit_cell(self):
-        col_key = self.cursor_key.column_key
-        row_key = self.cursor_key.row_key
-        column = self.columns[col_key]
-        if not column.editable:
-            return
-        current_value = self.entries[row_key][column.json_key]
-
-        def on_dismiss(value):
-            if value is None:
-                return
-            self.perform_edit(row_key, column, value)
-
-        self.push_screen(InputScreen(current_value), on_dismiss)
-
-    def perform_edit(self, row_key, column, value):
-        self.client.edit_entry(row_key, {column.json_key: value})
 
     def on_mount(self) -> None:
         pass
