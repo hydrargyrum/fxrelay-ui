@@ -6,9 +6,11 @@ import os
 from requests import Session
 
 from rich.text import Text
-from textual import log
+from textual import log, on
 from textual.app import App, ComposeResult
 from textual.binding import Binding
+from textual.message import Message
+from textual.message_pump import MessagePump
 from textual.screen import ModalScreen
 from textual.widgets import DataTable, Input
 
@@ -53,7 +55,7 @@ COLS = [
 ]
 
 
-class FxRelay:
+class FxRelayClient:
     def __init__(self, token):
         self.token = token
         self.session = Session()
@@ -90,7 +92,10 @@ class FxRelay:
 
 class Table(DataTable):
     BINDINGS = [
-        ("T", "toggle_cell", "toogle"),
+        # ("T", "toggle_cell", "toogle"),
+        Binding("(", "sort_asc_col"),
+        Binding(")", "sort_desc_col"),
+        Binding("ctrl+n", "new_row"),
     ]
 
     [
@@ -102,8 +107,50 @@ class Table(DataTable):
         Binding("ctrl+s", "save_changes"),
     ]
 
-    def toggle_cell(self):
-        self.exit(1)
+    def __init__(self, client):
+        super().__init__()
+        self.client = client
+        self._columns = {}
+        self.entries = {}
+
+        for n, column in enumerate(COLS):
+            self._columns[str(n)] = column
+
+    def on_mount(self):
+        for key, col in self._columns.items():
+            self.add_column(col.label, key=key)
+        self.refresh_entries()
+
+    @property
+    def cursor_key(self):
+        return self.coordinate_to_cell_key(self.cursor_coordinate)
+
+    def refresh_entries(self):
+        self.entries = {str(jentry["id"]): jentry for jentry in self.client.list_entries()}
+        self.clear()
+        for row_key, entry in self.entries.items():
+            self.add_row(
+                *(col.format(entry[col.json_key]) for col in self._columns.values()), key=row_key
+            )
+
+    def action_sort_asc_col(self):
+        col_key = self.cursor_key.column_key
+        self.sort(col_key, key=self._columns[col_key].sortkey)
+
+    def action_sort_desc_col(self):
+        col_key = self.cursor_key.column_key
+        self.sort(col_key, key=self._columns[col_key].sortkey, reverse=True)
+
+    def action_new_row(self):
+        entry = self.client.new_entry()
+        # self.entries[entry["id"]] = entry
+        # self.table.add_row(*(col.format(jentry[col.json_key]) for col in COLS), key=jentry["id"])
+
+    def action_delete_row(self):
+        key = self.cursor_key.row_key
+        # self.client.delete_entry(key)
+        self.table.remove_row(key)
+        del self.entries[key]
 
 
 class InputScreen(ModalScreen):
@@ -120,9 +167,6 @@ class InputScreen(ModalScreen):
 
 class TableApp(App):
     BINDINGS = [
-        Binding("(", "sort_asc_col"),
-        Binding(")", "sort_desc_col"),
-        Binding("ctrl+n", "new_row"),
         Binding("e", "edit_cell"),
         ("t", "toggle_cell", "blah"),
     ]
@@ -135,46 +179,17 @@ class TableApp(App):
     def __init__(self, client):
         super().__init__()
         self.client = client
-        self.columns = {}
-        self.entries = {}
+        # self.columns = {}
+        # self.entries = {}
         self.changes = {}
 
     def compose(self) -> ComposeResult:
-        yield Table()
+        yield Table(self.client)
 
     @property
     def table(self):
         # idiomatic?
         return self.query_one(DataTable)
-
-    @property
-    def cursor_key(self):
-        return self.table.coordinate_to_cell_key(self.table.cursor_coordinate)
-
-    def action_new_row(self):
-        entry = self.client.new_entry()
-        self.entries[entry["id"]] = entry
-        self.table.add_row(*(col.format(jentry[col.json_key]) for col in COLS), key=jentry["id"])
-
-    def action_delete_row(self):
-        key = self.cursor_key.row_key
-        #self.client.delete_entry(key)
-        self.table.remove_row(key)
-        del self.entries[key]
-
-    def refresh_entries(self):
-        self.entries = {str(jentry["id"]): jentry for jentry in self.client.list_entries()}
-        self.table.clear()
-        for jentry in self.entries.values():
-            self.table.add_row(*(col.format(jentry[col.json_key]) for col in COLS), key=str(jentry["id"]))
-
-    def action_sort_asc_col(self):
-        col_key = self.cursor_key.column_key
-        self.table.sort(col_key, key=self.columns[col_key].sortkey)
-
-    def action_sort_desc_col(self):
-        col_key = self.cursor_key.column_key
-        self.table.sort(col_key, key=self.columns[col_key].sortkey, reverse=True)
 
     def action_edit_cell(self):
         col_key = self.cursor_key.column_key
@@ -195,17 +210,14 @@ class TableApp(App):
         self.client.edit_entry(row_key, {column.json_key: value})
 
     def on_mount(self) -> None:
-        for col in COLS:
-            col_key = self.table.add_column(col.label)
-            self.columns[col_key] = col
-        self.refresh_entries()
+        pass
 
 # TODO async workers for client
 # TODO httpx
 
 
 if __name__ == "__main__":
-    client = FxRelay(os.environ["FXRELAY_TOKEN"])
+    client = FxRelayClient(os.environ["FXRELAY_TOKEN"])
 
     app = TableApp(client)
     app.run()
