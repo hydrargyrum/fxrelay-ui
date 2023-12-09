@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
 
 from dataclasses import dataclass
+import datetime
+from enum import Enum
 import os
 
 from requests import Session
 
 from rich.text import Text
-from textual import log, on
+from rich.style import Style
+from textual import log
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.message import Message
-from textual.message_pump import MessagePump
 from textual.screen import ModalScreen
-from textual.widgets import DataTable, Input
+from textual.widgets import DataTable, Input, Select
 
 
 DRY_RUN = True
@@ -24,7 +25,8 @@ class Column:
     json_key: str | None
     editable: bool = False
 
-    def format(self, value) -> str:
+    def format(self, entry) -> str:
+        value = entry[self.json_key]
         return str(value)
 
     def sortkey(self, value):
@@ -32,11 +34,49 @@ class Column:
 
 
 class BoolColumn(Column):
-    def format(self, value) -> str:
+    def format(self, entry) -> str:
+        value = entry[self.json_key]
         if value:
             return "✅"
         else:
             return " "
+
+
+class BlockColumn(Column):
+    def format(self, entry) -> str:
+        return block_enum_to_label(block_entry_to_enum(entry))
+
+
+class Blocking(Enum):
+    NONE = 1
+    PROMOTIONS = 2
+    ALL = 3
+
+
+def block_entry_to_enum(entry):
+    if not entry["enabled"]:
+        return Blocking.ALL
+    if entry["block_list_emails"]:
+        return Blocking.PROMOTIONS
+    return Blocking.NONE
+
+
+def block_enum_to_label(blocking):
+    texts = {
+        Blocking.ALL: Text("⛔ All", style=Style(color="white", bgcolor="red")),
+        Blocking.PROMOTIONS: Text("🗑️ Promotions", style=Style(color="black", bgcolor="#ff7700")),
+        Blocking.NONE: Text("✅ None", style=Style(color="black", bgcolor="#33ff33")),
+    }
+    return texts[blocking]
+
+
+def block_enum_to_entry(blocking):
+    values = {
+        Blocking.ALL: {"enabled": False, "block_list_emails": True},
+        Blocking.PROMOTIONS: {"enabled": True, "block_list_emails": True},
+        Blocking.NONE: {"enabled": True, "block_list_emails": False},
+    }
+    return values[blocking]
 
 
 class IntColumn(Column):
@@ -44,13 +84,19 @@ class IntColumn(Column):
         return int(value)
 
 
+class DateColumn(Column):
+    def format(self, entry) -> str:
+        value = entry[self.json_key]
+        date = datetime.datetime.fromisoformat(value).astimezone()
+        return date.strftime("%Y-%m-%d %H:%M %z")
+
+
 COLS = [
     Column("Description", "description", editable=True),
     Column("E-mail address", "full_address"),
     IntColumn("ID", "id"),
-    BoolColumn("Enabled?", "enabled", editable=True),
-    BoolColumn("Block?", "block_list_emails", editable=True), # TODO merge columns
-    Column("Created at", "created_at"),
+    BlockColumn("Block?", None, editable=True),
+    DateColumn("Created at", "created_at"),
     IntColumn("#Forwarded", "num_forwarded"),
     IntColumn("#Blocked", "num_blocked"),
     # Column("#Replied", "num_replied"),
@@ -83,8 +129,7 @@ class FxRelayClient:
             return
 
         response = self.session.patch(
-            f"https://relay.firefox.com/api/v1/relayaddresses/{id}",
-            json={},
+            f"https://relay.firefox.com/api/v1/relayaddresses/{id}", json=changes,
         )
         response.raise_for_status()
         return response.json()
@@ -118,6 +163,8 @@ class Table(DataTable):
 
     def __init__(self, client):
         super().__init__()
+        self.zebra_stripes = True
+
         self.client = client
         self._columns = {}
         self.entries = {}
@@ -142,7 +189,7 @@ class Table(DataTable):
 
     def _add_row(self, entry):
         self.add_row(
-            *(col.format(entry[col.json_key]) for col in self._columns.values()), key=str(entry["id"])
+            *(col.format(entry) for col in self._columns.values()), key=str(entry["id"])
         )
 
     def action_sort_asc_col(self):
@@ -172,12 +219,7 @@ class Table(DataTable):
         self.table.remove_row(key)
         del self.entries[key]
 
-    def action_edit_cell(self):
-        col_key = self.cursor_key.column_key
-        row_key = self.cursor_key.row_key
-        column = self._columns[col_key]
-        if not column.editable:
-            return
+    def _edit_cell(self, row_key, column):
         current_value = self.entries[row_key][column.json_key]
 
         def on_dismiss(value):
@@ -187,11 +229,39 @@ class Table(DataTable):
 
         self.app.push_screen(InputScreen(current_value), on_dismiss)
 
+    def _edit_block(self, row_key, column):
+        current_value = block_entry_to_enum(self.entries[row_key])
+
+        def on_dismiss(value):
+            if value is None:
+                return
+            print(value)
+            #self.perform_edit(row_key, column, value)
+
+        choices = {blocking: block_enum_to_label(blocking) for blocking in Blocking}
+        self.app.push_screen(ChoiceScreen(choices, current_value), on_dismiss)
+
+    def action_edit_cell(self):
+        col_key = self.cursor_key.column_key
+        row_key = self.cursor_key.row_key
+        column = self._columns[col_key]
+        if not column.editable:
+            return
+
+        if isinstance(column, BlockColumn):
+            self._edit_block(row_key, column)
+        else:
+            self._edit_cell(row_key, column)
+
     def perform_edit(self, row_key, column, value):
         self.client.edit_entry(row_key, {column.json_key: value})
 
 
 class InputScreen(ModalScreen):
+    BINDINGS = [
+        Binding("escape", "cancel"),
+    ]
+
     def __init__(self, value):
         super().__init__()
         self.init_value = value
@@ -201,6 +271,35 @@ class InputScreen(ModalScreen):
 
     def on_input_submitted(self, message):
         self.dismiss(message.value)
+
+    def action_cancel(self):
+        self.dismiss(None)
+
+
+class ChoiceScreen(ModalScreen):
+    BINDINGS = [
+        Binding("escape", "cancel"),
+    ]
+
+    def __init__(self, choices, selected):
+        super().__init__()
+        self.choices = choices
+        self.selected = selected
+
+    def compose(self):
+        yield Select(
+            [(value, key) for key, value in self.choices.items()],
+            value=self.selected, allow_blank=False,
+        )
+
+    def on_select_changed(self, message):
+        self.dismiss(message.value)
+
+    def action_cancel(self):
+        self.dismiss(None)
+
+    def on_mount(self):
+        self.query_one(Select).expanded = True
 
 
 class TableApp(App):
