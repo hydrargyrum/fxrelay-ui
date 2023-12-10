@@ -5,7 +5,7 @@ import datetime
 from enum import Enum
 import os
 
-from requests import Session
+from httpx import AsyncClient
 
 from rich.text import Text
 from rich.style import Style
@@ -108,45 +108,48 @@ COLS = [
 class FxRelayClient:
     def __init__(self, token):
         self.token = token
-        self.session = Session()
+        self.session = AsyncClient()
         self.session.headers["Authorization"] = f"Token {token}"
 
-    def list_entries(self):
-        response = self.session.get("https://relay.firefox.com/api/v1/relayaddresses/")
+    async def list_entries(self):
+        response = await self.session.get("https://relay.firefox.com/api/v1/relayaddresses/")
         response.raise_for_status()
         return response.json()
 
-    def new_entry(self):
-        response = self.session.post(
+    async def new_entry(self):
+        response = await self.session.post(
             "https://relay.firefox.com/api/v1/relayaddresses/",
             json={},
         )
         response.raise_for_status()
         return response.json()
 
-    def edit_entry(self, id, changes):
+    async def edit_entry(self, id, changes):
         if DRY_RUN:
             log(changes)
-            return
+            return (await self.session.get(f"https://relay.firefox.com/api/v1/relayaddresses/{id}/")).json()
 
-        response = self.session.patch(
-            f"https://relay.firefox.com/api/v1/relayaddresses/{id}", json=changes,
+        response = await self.session.patch(
+            f"https://relay.firefox.com/api/v1/relayaddresses/{id}/", json=changes,
         )
         response.raise_for_status()
         return response.json()
 
-    def delete_entry(self, id):
+    async def delete_entry(self, id):
         if DRY_RUN:
             return
 
-        response = self.session.delete(f"https://relay.firefox.com/api/v1/relayaddresses/{id}")
+        response = await self.session.delete(f"https://relay.firefox.com/api/v1/relayaddresses/{id}/")
         response.raise_for_status()
         return response.json()
 
 
+class WorkerGroup(Enum):
+    HTTP_LIST = "http-list"
+
+
 class Table(DataTable):
     BINDINGS = [
-        # ("T", "toggle_cell", "toogle"),
         Binding("(", "sort_asc_col"),
         Binding(")", "sort_desc_col"),
         Binding("ctrl+n", "new_row"),
@@ -176,14 +179,16 @@ class Table(DataTable):
     def on_mount(self):
         for key, col in self._columns.items():
             self.add_column(col.label, key=key)
-        self.refresh_entries()
+        self.run_worker(
+            self.refresh_entries(), group=WorkerGroup.HTTP_LIST.value, exclusive=True,
+        )
 
     @property
     def cursor_key(self):
         return self.coordinate_to_cell_key(self.cursor_coordinate)
 
-    def refresh_entries(self):
-        self.entries = {str(jentry["id"]): jentry for jentry in self.client.list_entries()}
+    async def refresh_entries(self):
+        self.entries = {str(jentry["id"]): jentry for jentry in await self.client.list_entries()}
         self.clear()
         for entry in self.entries.values():
             self._add_row(entry)
@@ -192,6 +197,11 @@ class Table(DataTable):
         self.add_row(
             *(col.format(entry) for col in self._columns.values()), key=str(entry["id"])
         )
+
+    def _update_row(self, row_key):
+        entry = self.entries[row_key]
+        for col_key, col in self._columns.items():
+            self.update_cell(row_key, col_key, col.format(entry))
 
     def action_sort_asc_col(self):
         col_key = self.cursor_key.column_key
@@ -216,12 +226,12 @@ class Table(DataTable):
     def action_delete_row(self):
         key = self.cursor_key.row_key
 
-        def on_dismiss(value):
+        async def on_dismiss(value):
             if not value:
                 return
 
             if not DRY_RUN:
-                self.client.delete_entry(key)
+                await self.client.delete_entry(key.value)
             self.remove_row(key)
             del self.entries[key]
 
@@ -230,20 +240,24 @@ class Table(DataTable):
     def _edit_cell(self, row_key, column):
         current_value = self.entries[row_key][column.json_key]
 
-        def on_dismiss(value):
+        async def on_dismiss(value):
             if value is None:
                 return
-            self.perform_edit(row_key, column, value)
+            entry = await self.client.edit_entry(row_key.value, {column.json_key: value})
+            self.entries[row_key] = entry
+            self._update_row(row_key)
 
         self.app.push_screen(InputScreen(current_value), on_dismiss)
 
     def _edit_block(self, row_key, column):
         current_value = block_entry_to_enum(self.entries[row_key])
 
-        def on_dismiss(value):
+        async def on_dismiss(value):
             if value is None:
                 return
-            self.client.edit_entry(row_key, block_enum_to_entry(value))
+            entry = await self.client.edit_entry(row_key.value, block_enum_to_entry(value))
+            self.entries[row_key] = entry
+            self._update_row(row_key)
 
         choices = {blocking: block_enum_to_label(blocking) for blocking in Blocking}
         self.app.push_screen(ChoiceScreen(choices, current_value), on_dismiss)
@@ -261,7 +275,10 @@ class Table(DataTable):
             self._edit_cell(row_key, column)
 
     def perform_edit(self, row_key, column, value):
-        self.client.edit_entry(row_key, {column.json_key: value})
+        self.run_worker(
+            self.client.edit_entry(row_key, {column.json_key: value}),
+            group=WorkerGroup.HTTP_EDIT.value,
+        )
 
 
 class InputScreen(ModalScreen):
@@ -350,9 +367,6 @@ class TableApp(App):
 
     def on_mount(self) -> None:
         pass
-
-# TODO async workers for client
-# TODO httpx
 
 
 if __name__ == "__main__":
