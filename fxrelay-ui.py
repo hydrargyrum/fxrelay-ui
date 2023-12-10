@@ -235,8 +235,7 @@ class Table(DataTable):
         def on_dismiss(value):
             if value is None:
                 return
-            print(value)
-            #self.perform_edit(row_key, column, value)
+            self.client.edit_entry(row_key, block_enum_to_entry(value))
 
         choices = {blocking: block_enum_to_label(blocking) for blocking in Blocking}
         self.app.push_screen(ChoiceScreen(choices, current_value), on_dismiss)
