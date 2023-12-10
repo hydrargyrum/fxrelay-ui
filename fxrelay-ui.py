@@ -12,8 +12,9 @@ from rich.style import Style
 from textual import log
 from textual.app import App, ComposeResult
 from textual.binding import Binding
+from textual.containers import Grid
 from textual.screen import ModalScreen
-from textual.widgets import DataTable, Input, Select
+from textual.widgets import Button, DataTable, Input, Select
 
 
 DRY_RUN = True
@@ -150,6 +151,7 @@ class Table(DataTable):
         Binding(")", "sort_desc_col"),
         Binding("ctrl+n", "new_row"),
         Binding("e", "edit_cell"),
+        Binding("delete", "delete_row"),
     ]
 
     [
@@ -157,7 +159,6 @@ class Table(DataTable):
         Binding("n", "search_next"),
         Binding("shift+n", "search_prev"),
         Binding("Y", "copy_clipboard_cell"),
-        Binding("delete", "delete_row"),
         Binding("ctrl+s", "save_changes"),
     ]
 
@@ -214,10 +215,17 @@ class Table(DataTable):
 
     def action_delete_row(self):
         key = self.cursor_key.row_key
-        if not DRY_RUN:
-            self.client.delete_entry(key)
-        self.table.remove_row(key)
-        del self.entries[key]
+
+        def on_dismiss(value):
+            if not value:
+                return
+
+            if not DRY_RUN:
+                self.client.delete_entry(key)
+            self.remove_row(key)
+            del self.entries[key]
+
+        self.app.push_screen(ConfirmScreen(), on_dismiss)
 
     def _edit_cell(self, row_key, column):
         current_value = self.entries[row_key][column.json_key]
@@ -301,10 +309,26 @@ class ChoiceScreen(ModalScreen):
         self.query_one(Select).expanded = True
 
 
-class TableApp(App):
+class ConfirmScreen(ModalScreen):
     BINDINGS = [
-        ("t", "toggle_cell", "blah"),
+        Binding("escape", "cancel"),
     ]
+
+    def compose(self):
+        yield Grid(
+            Button("OK", id="ok"),
+            Button("Cancel", id="cancel"),
+        )
+
+    def action_cancel(self):
+        self.dismiss(None)
+
+    def on_button_pressed(self, message):
+        if message.button.id == "cancel":
+            self.action_cancel()
+
+
+class TableApp(App):
     # TODO search
     # TODO edit input
     # TODO edit bool
@@ -314,8 +338,6 @@ class TableApp(App):
     def __init__(self, client):
         super().__init__()
         self.client = client
-        # self.columns = {}
-        # self.entries = {}
         self.changes = {}
 
     def compose(self) -> ComposeResult:
