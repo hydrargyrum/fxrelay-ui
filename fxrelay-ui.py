@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 import datetime
 from enum import Enum
+from gettext import gettext as g
 import os
 
 from httpx import AsyncClient
@@ -72,9 +73,9 @@ def block_entry_to_enum(entry):
 
 def block_enum_to_label(blocking):
     texts = {
-        Blocking.ALL: Text("⛔ All", style=Style(color="white", bgcolor="red")),
-        Blocking.PROMOTIONS: Text("🗑️ Promotions", style=Style(color="black", bgcolor="#ff7700")),
-        Blocking.NONE: Text("✅ None", style=Style(color="black", bgcolor="#33ff33")),
+        Blocking.ALL: Text(g("⛔ All"), style=Style(color="white", bgcolor="red")),
+        Blocking.PROMOTIONS: Text(g("🗑️ Promotions"), style=Style(color="black", bgcolor="#ff7700")),
+        Blocking.NONE: Text(g("✅ None"), style=Style(color="black", bgcolor="#33ff33")),
     }
     return texts[blocking]
 
@@ -101,15 +102,18 @@ class DateColumn(Column):
 
 
 COLS = [
-    Column("Description", "description", editable=True),
-    Column("E-mail address", "full_address"),
-    IntColumn("ID", "id"),
-    BlockColumn("Block?", None, editable=True),
-    DateColumn("Created at", "created_at"),
-    IntColumn("#Forwarded", "num_forwarded"),
-    IntColumn("#Blocked", "num_blocked"),
-    # Column("#Replied", "num_replied"),
-    # Column("#Spam", "num_spam"),
+    Column(g("Description"), "description", editable=True),
+    Column(g("E-mail address"), "full_address"),
+    IntColumn(g("ID"), "id"),
+    BlockColumn(g("Block?"), None, editable=True),
+    DateColumn(g("Created at"), "created_at"),
+    IntColumn(g("✅"), "num_forwarded"),
+    # IntColumn(g("#Forwarded"), "num_forwarded"),
+    IntColumn(g("⛔"), "num_blocked"),
+    # IntColumn(g("#Blocked"), "num_blocked"),
+    IntColumn(g("↩️"), "num_replied"),
+    # IntColumn(g("#Replied"), "num_replied"),
+    # IntColumn("#Spam", "num_spam"),
 ]
 
 
@@ -341,8 +345,8 @@ class ConfirmScreen(ModalScreen):
 
     def compose(self):
         yield Grid(
-            Button("OK", id="ok"),
-            Button("Cancel", id="cancel"),
+            Button(g("OK"), id="ok"),
+            Button(g("Cancel"), id="cancel"),
         )
 
     def action_cancel(self):
