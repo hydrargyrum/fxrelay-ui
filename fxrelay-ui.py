@@ -26,6 +26,10 @@ class Column:
     json_key: str | None
     editable: bool = False
 
+    @property
+    def column_key(self):
+        return self.json_key
+
     def format(self, entry) -> str:
         value = entry[self.json_key]
         return str(value)
@@ -46,6 +50,10 @@ class BoolColumn(Column):
 class BlockColumn(Column):
     def format(self, entry) -> str:
         return block_enum_to_label(block_entry_to_enum(entry))
+
+    @property
+    def column_key(self):
+        return "blocking"
 
 
 class Blocking(Enum):
@@ -173,8 +181,8 @@ class Table(DataTable):
         self._columns = {}
         self.entries = {}
 
-        for n, column in enumerate(COLS):
-            self._columns[str(n)] = column
+        for column in COLS:
+            self._columns[column.column_key] = column
 
     def on_mount(self):
         for key, col in self._columns.items():
