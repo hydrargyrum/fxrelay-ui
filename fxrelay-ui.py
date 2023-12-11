@@ -36,16 +36,9 @@ class Column:
         return str(value)
 
     def sortkey(self, value):
+        if isinstance(value, Text):
+            return value.plain
         return value
-
-
-class BoolColumn(Column):
-    def format(self, entry) -> str:
-        value = entry[self.json_key]
-        if value:
-            return "✅"
-        else:
-            return " "
 
 
 class BlockColumn(Column):
@@ -91,6 +84,7 @@ def block_enum_to_entry(blocking):
 
 class IntColumn(Column):
     def sortkey(self, value):
+        value = super().sortkey(value)
         return int(value)
 
 
