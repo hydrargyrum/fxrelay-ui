@@ -155,7 +155,6 @@ class FxRelayClient:
 
         response = await self.session.delete(f"https://relay.firefox.com/api/v1/relayaddresses/{id}/")
         response.raise_for_status()
-        return response.json()
 
 
 class WorkerGroup(Enum):
@@ -367,7 +366,9 @@ class ConfirmScreen(ModalScreen):
 
     def on_button_pressed(self, message):
         if message.button.id == "cancel":
-            self.action_cancel()
+            self.dismiss(None)
+        if message.button.id == "ok":
+            self.dismiss(True)
 
 
 class TableApp(App):
