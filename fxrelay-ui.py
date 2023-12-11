@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 
 from argparse import ArgumentParser
+import asyncio
 from dataclasses import dataclass
 import datetime
 from enum import Enum
 from gettext import gettext as g
 import os
+import subprocess
 
 from httpx import AsyncClient
 
@@ -167,14 +169,13 @@ class Table(DataTable):
         Binding("ctrl+n", "new_row"),
         Binding("e", "edit_cell"),
         Binding("delete", "delete_row"),
+        Binding("C", "clipboard_email"),
     ]
 
     [
         Binding("/", "enter_search"),
         Binding("n", "search_next"),
         Binding("shift+n", "search_prev"),
-        Binding("Y", "copy_clipboard_cell"),
-        Binding("ctrl+s", "save_changes"),
     ]
 
     def __init__(self, client):
@@ -290,6 +291,18 @@ class Table(DataTable):
         self.run_worker(
             self.client.edit_entry(row_key, {column.json_key: value}),
             group=WorkerGroup.HTTP_EDIT.value,
+        )
+
+    async def _subprocess(self, cmd: list[str], stdin: str):
+        proc = await asyncio.create_subprocess_exec(*cmd, stdin=subprocess.PIPE)
+        await proc.communicate(stdin.encode())
+        await proc.wait()
+
+    def action_clipboard_email(self):
+        row_key = self.cursor_key.row_key
+        email = self.entries[row_key]["full_address"]
+        self.run_worker(
+            self._subprocess(["xclip", "-i", "-selection", "clipboard"], email)
         )
 
 
