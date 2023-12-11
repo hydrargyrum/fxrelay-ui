@@ -36,6 +36,10 @@ class Column:
 
     def format(self, entry) -> str:
         value = entry[self.json_key]
+
+        if block_entry_to_enum(entry) == Blocking.ALL:
+            return Text(str(value), style=Style(color="grey53", strike=True, italic=True))
+
         return str(value)
 
     def sortkey(self, value):
