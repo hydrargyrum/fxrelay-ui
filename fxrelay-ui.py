@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+from argparse import ArgumentParser
 from dataclasses import dataclass
 import datetime
 from enum import Enum
@@ -65,11 +66,19 @@ def block_entry_to_enum(entry):
 
 
 def block_enum_to_label(blocking):
-    texts = {
-        Blocking.ALL: Text(g("⛔ All"), style=Style(color="white", bgcolor="red")),
-        Blocking.PROMOTIONS: Text(g("🗑️ Promotions"), style=Style(color="black", bgcolor="#ff7700")),
-        Blocking.NONE: Text(g("✅ None"), style=Style(color="black", bgcolor="#33ff33")),
-    }
+    if ARGS.emojis:
+        texts = {
+            Blocking.ALL: Text(g("⛔ All"), style=Style(color="white", bgcolor="red")),
+            Blocking.PROMOTIONS: Text(g("🗑️ Promotions"), style=Style(color="black", bgcolor="#ff7700")),
+            Blocking.NONE: Text(g("✅ None"), style=Style(color="black", bgcolor="#33ff33")),
+        }
+    else:
+        texts = {
+            Blocking.ALL: Text(g("All"), style=Style(color="white", bgcolor="red")),
+            Blocking.PROMOTIONS: Text(g("Promotions"), style=Style(color="black", bgcolor="#ff7700")),
+            Blocking.NONE: Text(g("None"), style=Style(color="black", bgcolor="#33ff33")),
+        }
+
     return texts[blocking]
 
 
@@ -101,12 +110,9 @@ COLS = [
     IntColumn(g("ID"), "id"),
     BlockColumn(g("Block?"), None, editable=True),
     DateColumn(g("Created at"), "created_at"),
-    IntColumn(g("✅"), "num_forwarded"),
-    # IntColumn(g("#Forwarded"), "num_forwarded"),
-    IntColumn(g("⛔"), "num_blocked"),
-    # IntColumn(g("#Blocked"), "num_blocked"),
-    IntColumn(g("↩️"), "num_replied"),
-    # IntColumn(g("#Replied"), "num_replied"),
+    IntColumn(g("Forwarded"), "num_forwarded"),
+    IntColumn(g("Blocked"), "num_blocked"),
+    IntColumn(g("Replied"), "num_replied"),
     # IntColumn("#Spam", "num_spam"),
 ]
 
@@ -375,8 +381,24 @@ class TableApp(App):
         pass
 
 
-if __name__ == "__main__":
-    client = FxRelayClient(os.environ["FXRELAY_TOKEN"])
+def parse_args():
+    global ARGS
+    parser = ArgumentParser()
+    parser.add_argument("--token")
+    parser.add_argument("--emojis", action="store_true")
+    ARGS = parser.parse_args()
 
+
+if __name__ == "__main__":
+    parse_args()
+    if not ARGS.token:
+        ARGS.token = os.environ["FXRELAY_TOKEN"]
+
+    if ARGS.emojis:
+        COLS[5].label = g("✅")
+        COLS[6].label = g("⛔")
+        COLS[7].label = g("↩️")
+
+    client = FxRelayClient(ARGS.token)
     app = TableApp(client)
     app.run()
