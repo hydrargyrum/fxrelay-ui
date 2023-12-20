@@ -169,12 +169,12 @@ class WorkerGroup(Enum):
 
 class Table(DataTable):
     BINDINGS = [
-        Binding("(", "sort_asc_col"),
-        Binding(")", "sort_desc_col"),
-        Binding("ctrl+n", "new_row"),
-        Binding("e", "edit_cell"),
-        Binding("delete", "delete_row"),
-        Binding("C", "clipboard_email"),
+        Binding("(", "sort_asc_col", "Sort column in ascending order"),
+        Binding(")", "sort_desc_col", "Sort column in descending order"),
+        Binding("ctrl+n", "new_row", "Add a new row"),
+        Binding("e", "edit_cell", "Edit current cell"),
+        Binding("delete", "delete_row", "Delete current row permanently"),
+        Binding("C", "clipboard_email", "Copy email to system clipboard"),
         Binding("/", "prompt_search"),
         Binding("n", "search_next"),
         Binding("N", "search_previous"),
@@ -390,7 +390,7 @@ class InputScreen(ModalScreen):
 
 class ChoiceScreen(ModalScreen):
     BINDINGS = [
-        Binding("escape", "cancel"),
+        Binding("escape", "cancel", "Cancel"),
     ]
 
     def __init__(self, choices, selected):
@@ -416,7 +416,7 @@ class ChoiceScreen(ModalScreen):
 
 class ConfirmScreen(ModalScreen):
     BINDINGS = [
-        Binding("escape", "cancel"),
+        Binding("escape", "cancel", "Cancel"),
     ]
 
     def compose(self):
