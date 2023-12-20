@@ -18,6 +18,7 @@ from textual import log
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Grid
+from textual.coordinate import Coordinate
 from textual.screen import ModalScreen
 from textual.widgets import Button, DataTable, Input, Select
 
@@ -174,12 +175,9 @@ class Table(DataTable):
         Binding("e", "edit_cell"),
         Binding("delete", "delete_row"),
         Binding("C", "clipboard_email"),
-    ]
-
-    [
-        Binding("/", "enter_search"),
+        Binding("/", "prompt_search"),
         Binding("n", "search_next"),
-        Binding("shift+n", "search_prev"),
+        Binding("N", "search_previous"),
     ]
 
     def __init__(self, client):
@@ -189,6 +187,7 @@ class Table(DataTable):
         self.client = client
         self._columns = {}
         self.entries = {}
+        self.searcher = Searcher(self)
 
         for column in COLS:
             self._columns[column.column_key] = column
@@ -309,6 +308,66 @@ class Table(DataTable):
             self._subprocess(["xclip", "-i", "-selection", "clipboard"], email)
         )
 
+    def action_prompt_search(self):
+        async def on_dismiss(value):
+            if not value:
+                return
+            self.searcher.text = value.lower()
+            self.action_search_next()
+
+        self.app.push_screen(InputScreen(self.searcher.text), on_dismiss)
+
+    def action_search_next(self):
+        self.searcher.next()
+
+    def action_search_previous(self):
+        self.searcher.previous()
+
+
+class Searcher:
+    def __init__(self, table):
+        self.table = table
+        self.text = ""
+
+    def _new_coordinates_down(self, row, column):
+        # FIXME hardcoding column indexes is ugly
+        if column == 0:
+            return (row, 1)
+        else:
+            return ((row + 1) % len(self.table.entries), 0)
+
+    def _new_coordinates_up(self, row, column):
+        if column == 0:
+            return ((row - 1) % len(self.table.entries), 1)
+        else:
+            return (row, 0)
+
+    def _all_search_cells(self, dir_func):
+        current = start = (self.table.cursor_coordinate.row, self.table.cursor_coordinate.column)
+        while True:
+            current = dir_func(*current)
+            if current == start:
+                break
+            yield current
+
+    def _do_search(self, dir_func):
+        if not self.text:
+            return
+
+        for row, column in self._all_search_cells(dir_func):
+            cell_key = self.table.coordinate_to_cell_key(Coordinate(row, column))
+            column_object = self.table._columns[cell_key.column_key]
+            entry = self.table.entries[cell_key.row_key]
+            if self.text in column_object.sortkey(column_object.format(entry)):
+                self.table.move_cursor(row=row, column=column, animate=True)
+                return
+
+    def next(self):
+        self._do_search(self._new_coordinates_down)
+
+    def previous(self):
+        self._do_search(self._new_coordinates_up)
+
 
 class InputScreen(ModalScreen):
     BINDINGS = [
@@ -377,10 +436,6 @@ class ConfirmScreen(ModalScreen):
 
 
 class TableApp(App):
-    # TODO search
-    # TODO edit input
-    # TODO edit bool
-    # TODO patches? [id, key] = value
     # TODO error handling
 
     def __init__(self, client):
