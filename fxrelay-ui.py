@@ -23,7 +23,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Button, DataTable, Input, Select
 
 
-DRY_RUN = True
+DRY_RUN = False
 
 
 @dataclass
