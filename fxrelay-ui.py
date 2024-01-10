@@ -227,12 +227,12 @@ class Table(DataTable):
         col_key = self.cursor_key.column_key
         self.sort(col_key, key=self._columns[col_key].sortkey, reverse=True)
 
-    def action_new_row(self):
+    async def action_new_row(self):
         if DRY_RUN:
             entry = next(iter(self.entries.values()))
             entry["id"] = 42
         else:
-            entry = self.client.new_entry()
+            entry = await self.client.new_entry()
 
         self.entries[str(entry["id"])] = entry
         self._add_row(entry)
