@@ -236,7 +236,7 @@ class Table(DataTable):
 
         self.entries[str(entry["id"])] = entry
         self._add_row(entry)
-        coord = self.get_cell_coordinate(str(entry["id"]), "0")
+        coord = self.get_cell_coordinate(str(entry["id"]), "description")
         self.move_cursor(row=coord.row, column=coord.column, animate=True)
 
     def action_delete_row(self):
