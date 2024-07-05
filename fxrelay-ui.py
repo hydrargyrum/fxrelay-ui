@@ -438,6 +438,8 @@ class ConfirmScreen(ModalScreen):
 class TableApp(App):
     # TODO error handling
 
+    CSS_PATH = "fxrelay-ui.css"
+
     def __init__(self, client):
         super().__init__()
         self.client = client

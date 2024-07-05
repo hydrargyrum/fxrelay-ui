@@ -1,0 +1,17 @@
+ConfirmScreen {
+    align: center middle;
+        height: 100%;
+    margin: 4 8;
+}
+
+ConfirmScreen Grid {
+    grid-size: 2;
+}
+
+ConfirmScreen #ok {
+    background: $warning;
+}
+
+ChoiceScreen {
+    align: center middle;
+}
