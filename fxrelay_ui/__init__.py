@@ -23,7 +23,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Button, DataTable, Input, Select
 
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 DRY_RUN = False
 
@@ -446,7 +446,7 @@ class ConfirmScreen(ModalScreen):
 class TableApp(App):
     # TODO error handling
 
-    CSS_PATH = "fxrelay-ui.css"
+    CSS_PATH = "fxrelay_ui.css"
 
     def __init__(self, client):
         super().__init__()
@@ -473,7 +473,7 @@ def parse_args():
     ARGS = parser.parse_args()
 
 
-if __name__ == "__main__":
+def main():
     parse_args()
     if not ARGS.token:
         ARGS.token = os.environ["FXRELAY_TOKEN"]
@@ -486,3 +486,7 @@ if __name__ == "__main__":
     client = FxRelayClient(ARGS.token)
     app = TableApp(client)
     app.run()
+
+
+if __name__ == "__main__":
+    main()
