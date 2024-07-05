@@ -23,6 +23,8 @@ from textual.screen import ModalScreen
 from textual.widgets import Button, DataTable, Input, Select
 
 
+__version__ = "0.1.0"
+
 DRY_RUN = False
 
 
