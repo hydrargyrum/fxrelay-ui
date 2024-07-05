@@ -180,6 +180,7 @@ class Table(DataTable):
         Binding("/", "prompt_search"),
         Binding("n", "search_next"),
         Binding("N", "search_previous"),
+        Binding("R", "refresh_entries"),
     ]
 
     def __init__(self, client):
@@ -254,6 +255,11 @@ class Table(DataTable):
             del self.entries[key]
 
         self.app.push_screen(ConfirmScreen(), on_dismiss)
+
+    def action_refresh_entries(self):
+        self.run_worker(
+            self.refresh_entries(), group=WorkerGroup.HTTP_LIST.value, exclusive=True,
+        )
 
     def _edit_cell(self, row_key, column):
         current_value = self.entries[row_key][column.json_key]
