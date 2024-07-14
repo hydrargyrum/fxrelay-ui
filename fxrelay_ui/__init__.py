@@ -17,10 +17,10 @@ from rich.style import Style
 from textual import log
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Grid
+from textual.containers import Center, Grid, Middle
 from textual.coordinate import Coordinate
 from textual.screen import ModalScreen
-from textual.widgets import Button, DataTable, Footer, Input, Select
+from textual.widgets import Button, DataTable, Footer, Input, ProgressBar, Select
 
 
 __version__ = "0.2.0"
@@ -207,10 +207,19 @@ class Table(DataTable):
         return self.coordinate_to_cell_key(self.cursor_coordinate)
 
     async def refresh_entries(self):
-        self.entries = {str(jentry["id"]): jentry for jentry in await self.client.list_entries()}
-        self.clear()
-        for entry in self.entries.values():
-            self._add_row(entry)
+        screen = LoadingScreen()
+        self.app.push_screen(screen)
+
+        try:
+            self.entries = {
+                str(jentry["id"]): jentry
+                for jentry in await self.client.list_entries()
+            }
+            self.clear()
+            for entry in self.entries.values():
+                self._add_row(entry)
+        finally:
+            screen.dismiss()
 
     def _add_row(self, entry):
         self.add_row(
@@ -394,6 +403,19 @@ class InputScreen(ModalScreen):
 
     def action_cancel(self):
         self.dismiss(None)
+
+
+class LoadingScreen(ModalScreen):
+    def compose(self):
+        with Center():
+            with Middle():
+                yield ProgressBar(show_eta=False, show_percentage=False)
+
+    def on_mount(self) -> None:
+        self.progress_timer = self.set_interval(1 / 10, self.make_progress, pause=True)
+
+    def make_progress(self) -> None:
+        self.query_one(ProgressBar).advance(1)
 
 
 class ChoiceScreen(ModalScreen):
