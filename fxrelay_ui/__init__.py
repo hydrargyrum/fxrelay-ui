@@ -20,7 +20,7 @@ from textual.binding import Binding
 from textual.containers import Grid
 from textual.coordinate import Coordinate
 from textual.screen import ModalScreen
-from textual.widgets import Button, DataTable, Input, Select
+from textual.widgets import Button, DataTable, Footer, Input, Select
 
 
 __version__ = "0.2.0"
@@ -171,16 +171,16 @@ class WorkerGroup(Enum):
 
 class Table(DataTable):
     BINDINGS = [
-        Binding("(", "sort_asc_col", "Sort column in ascending order"),
-        Binding(")", "sort_desc_col", "Sort column in descending order"),
-        Binding("ctrl+n", "new_row", "Add a new row"),
-        Binding("e", "edit_cell", "Edit current cell"),
-        Binding("delete", "delete_row", "Delete current row permanently"),
-        Binding("C", "clipboard_email", "Copy email to system clipboard"),
-        Binding("/", "prompt_search"),
-        Binding("n", "search_next"),
+        Binding("ctrl+n", "new_row", "New alias"),
+        Binding("e", "edit_cell", "Edit cell"),
+        Binding("delete", "delete_row", "Delete alias permanently"),
+        Binding("C", "clipboard_email", "Copy email to clipboard"),
+        Binding("/", "prompt_search", "Search"),
+        Binding("n", "search_next", "Next result"),
         Binding("N", "search_previous"),
-        Binding("R", "refresh_entries"),
+        Binding("R", "refresh_entries", "Refresh"),
+        Binding("(", "sort_asc_col", "Sort ↑"),
+        Binding(")", "sort_desc_col", "Sort ↓"),
     ]
 
     def __init__(self, client):
@@ -446,6 +446,10 @@ class ConfirmScreen(ModalScreen):
 class TableApp(App):
     # TODO error handling
 
+    BINDINGS = [
+        Binding("q", "quit", "Quit"),
+    ]
+
     CSS_PATH = "fxrelay_ui.css"
 
     def __init__(self, client):
@@ -455,6 +459,7 @@ class TableApp(App):
 
     def compose(self) -> ComposeResult:
         yield Table(self.client)
+        yield Footer()
 
     @property
     def table(self):
