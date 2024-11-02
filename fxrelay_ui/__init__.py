@@ -28,6 +28,22 @@ __version__ = "0.2.0"
 DRY_RUN = False
 
 
+"""
+Description: customizable description of this address (won't be shown)
+E-mail address: alias email address
+ID: the internal Firefox Relay identifier
+Block?:
+    ✅ None: no emails are blocked
+    🗑️ Promotions: some emails are blocked
+    ⛔ All: all incoming emails are blocked, the alias is (temporarily) disabled
+
+Created at: creation date of this alias
+Forwarded: number of emails that have been forwarded to the real address
+Blocked: number of emails that were received on the alias but not forwarded
+Replied: number of replies you made to forwarded emails
+"""
+
+
 @dataclass
 class Column:
     label: str
