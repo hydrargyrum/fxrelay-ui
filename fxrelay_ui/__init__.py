@@ -429,19 +429,26 @@ class ChoiceScreen(ModalScreen):
         self.selected = selected
 
     def compose(self):
-        yield Select(
-            [(value, key) for key, value in self.choices.items()],
-            value=self.selected, allow_blank=False,
+        yield Container(
+            Select(
+                [(value, key) for key, value in self.choices.items()],
+                value=self.selected, allow_blank=False,
+            ),
+            Horizontal(
+                Button(g("OK"), variant="success", id="ok"),
+                Button(g("Cancel"), variant="error", id="cancel"),
+                classes="buttons",
+            ),
         )
 
-    def on_select_changed(self, message):
-        self.dismiss(message.value)
+    def on_button_pressed(self, message):
+        if message.button.id == "cancel":
+            self.dismiss(None)
+        if message.button.id == "ok":
+            self.dismiss(self.query_one(Select).value)
 
     def action_cancel(self):
         self.dismiss(None)
-
-    def on_mount(self):
-        self.query_one(Select).expanded = True
 
 
 class ConfirmScreen(ModalScreen):
