@@ -17,10 +17,10 @@ from rich.style import Style
 from textual import log
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Center, Grid, Middle
+from textual.containers import Center, Container, Horizontal, Middle
 from textual.coordinate import Coordinate
 from textual.screen import ModalScreen
-from textual.widgets import Button, DataTable, Footer, Input, ProgressBar, Select
+from textual.widgets import Button, DataTable, Footer, Input, ProgressBar, Select, Static
 
 
 __version__ = "0.2.0"
@@ -450,9 +450,13 @@ class ConfirmScreen(ModalScreen):
     ]
 
     def compose(self):
-        yield Grid(
-            Button(g("OK"), id="ok"),
-            Button(g("Cancel"), id="cancel"),
+        yield Container(
+            Static(g("Do you want to delete this alias?"), classes="question"),
+            Horizontal(
+                Button(g("OK"), variant="success", id="ok"),
+                Button(g("Cancel"), variant="error", id="cancel"),
+                classes="buttons",
+            ),
         )
 
     def action_cancel(self):
